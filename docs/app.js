@@ -21,7 +21,7 @@ let SYNC = load(LS.sync, {
   code: "lugoasta", on: true,
 });
 let MOVES = load(LS.moves, []);
-let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [] });
+let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [], auctionOpen: true });
 let MYTEAM = load(LS.myteam, "");          // quale squadra sono io (scelta LOCALE)
 let PURCHASES = [];
 let PLAYERS = [];
@@ -106,6 +106,7 @@ function adoptConfig(remote) {
     budgetPerTeam: remote.budgetPerTeam ?? CONFIG.budgetPerTeam,
     roster: remote.roster ?? CONFIG.roster,
     teams,
+    auctionOpen: remote.auctionOpen === false ? false : true, // assente = aperta
   };
   if (JSON.stringify(next) === JSON.stringify(CONFIG)) return false;
   CONFIG = next; save(LS.config, CONFIG);
@@ -193,6 +194,11 @@ async function loadData(force = false) {
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 let toastTimer;
 function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1800); }
+// gate condiviso: quando l'admin chiude l'asta, la LITE non può registrare/annullare
+function auctionClosed() {
+  if (CONFIG.auctionOpen === false) { toast("🔒 Asta chiusa: modifiche disabilitate"); return true; }
+  return false;
+}
 const takenIds = () => new Set(PURCHASES.map((p) => p.playerId));
 const teamOf = (pid) => { const p = PURCHASES.find((x) => x.playerId === pid); return p ? p.team : null; };
 // ts dell'ultima mossa per giocatore, per ordinare "ultimi acquisti"
@@ -238,6 +244,8 @@ function setScreen(name) {
 
 // ---- ASTA ----
 function renderAsta() {
+  const ban = document.getElementById("auctionBanner");
+  if (ban) ban.style.display = CONFIG.auctionOpen === false ? "block" : "none";
   const card = document.getElementById("calledCard");
   const p = selectedId ? PLAYERS.find((x) => x.id === selectedId) : null;
   if (!p) {
@@ -260,6 +268,8 @@ function renderAsta() {
       ${taken ? `
         <div class="taken-box">✔ Già preso da <b>${esc(teamOf(p.id) || "?")}</b></div>
         <button class="btn ghost full" data-undo="${esc(p.id)}">↩ Annulla acquisto</button>
+      ` : CONFIG.auctionOpen === false ? `
+        <div class="taken-box">🔒 Asta chiusa: non puoi registrare acquisti finché l'admin non la riapre.</div>
       ` : `
         <div class="buy-row">
           <button class="step" data-step="-1">−</button>
@@ -361,6 +371,7 @@ function selectPlayer(id) {
   renderAll();
 }
 function recordBuy(team) {
+  if (auctionClosed()) return;
   const p = PLAYERS.find((x) => x.id === selectedId); if (!p || !team) return;
   const inp = document.getElementById("priceInput");
   const price = Math.max(1, Math.round(Number(inp?.value) || p.qi || 1));
@@ -369,6 +380,7 @@ function recordBuy(team) {
   selectedId = null; buyPrice = null; renderAll();
 }
 function undoBuy(pid) {
+  if (auctionClosed()) return;
   emitMove({ type: "undo", playerId: pid });
   const pl = PLAYERS.find((x) => x.id === pid);
   toast(`Annullato: ${pl ? pl.nome : "acquisto"}`);

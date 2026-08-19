@@ -41,6 +41,7 @@ input:disabled { opacity: .55; }
 .called .nome { font-size: 1.25rem; font-weight: 700; }
 .called .sub { color: var(--muted); font-size: .82rem; }
 .taken-box { background: var(--card2); border-radius: 12px; padding: 12px; text-align: center; margin: 14px 0 8px; }
+.auction-banner { background: rgba(220,38,38,.15); color: #fca5a5; border: 1px solid rgba(220,38,38,.4); border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-weight: 700; text-align: center; }
 
 .buy-row { display: flex; gap: 8px; align-items: stretch; margin-top: 14px; }
 .buy-row input { flex: 1; text-align: center; font-size: 1.3rem; font-weight: 700; }
