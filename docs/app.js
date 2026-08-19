@@ -32,6 +32,7 @@ let DEVICE_ID = load(LS.device, "");
 if (!DEVICE_ID) { DEVICE_ID = "lit-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); save(LS.device, DEVICE_ID); }
 let _esMoves = null, _esConfig = null, _pollId = null, _status = "off";
 const ui = { screen: "asta", search: "", expanded: new Set() };
+let obDismissed = false; // onboarding: chiuso manualmente per questa sessione (per raggiungere il Setup)
 
 // ---------------------------------------------------------------------------
 // Sync (Firebase RTDB via REST) — config in sola lettura, mosse in append
@@ -192,10 +193,28 @@ function moveTsMap() { const m = new Map(); for (const mv of MOVES) if (mv.playe
 // Render
 // ---------------------------------------------------------------------------
 function renderAll() {
+  renderOnboarding();
   renderDataChip();
   if (ui.screen === "asta") renderAsta();
   if (ui.screen === "squadre") renderSquadre();
   if (ui.screen === "setup") renderSetup();
+}
+
+// Prima apertura: finché non hai scelto la tua squadra, mostra la schermata di scelta.
+// Dopo, si cambia solo dal Setup (con la ⭐). obDismissed = via di fuga verso il Setup.
+function renderOnboarding() {
+  const el = document.getElementById("onboarding");
+  if (MYTEAM || obDismissed) { el.style.display = "none"; return; }
+  const teams = CONFIG.teams || [];
+  el.style.display = "flex";
+  el.innerHTML = `<div class="ob-card">
+    <div class="ob-logo">⚽</div>
+    <h2>Fanta<span>Asta</span> LITE</h2>
+    <p>Qual è la <b>tua squadra</b> in questa lega?</p>
+    ${teams.length
+      ? `<div class="team-pick">${teams.map((t) => `<button class="pickbtn" data-pickteam="${esc(t)}">${esc(t)}</button>`).join("")}</div>`
+      : `<div class="ob-wait">⏳ Mi collego alla lega…<div class="hint" style="margin-top:8px">Se le squadre non compaiono, controlla il <b>Codice Lega</b>.</div><button class="btn ghost full" id="obSetup" style="margin-top:16px">⚙️ Apri Setup</button></div>`}
+  </div>`;
 }
 function renderDataChip() {
   const chip = document.getElementById("dataChip"); if (!chip) return;
@@ -377,6 +396,7 @@ function wire() {
     }
     const undo = e.target.closest("[data-undo]"); if (undo) { undoBuy(undo.dataset.undo); return; }
     const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${MYTEAM}`); return; }
+    const obSetup = e.target.closest("#obSetup"); if (obSetup) { obDismissed = true; setScreen("setup"); return; }
   });
 
   document.getElementById("syncUrl").addEventListener("change", (e) => { SYNC.url = e.target.value.trim(); persistSync(); if (SYNC.on) startSync(); });

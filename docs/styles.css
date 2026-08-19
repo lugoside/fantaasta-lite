@@ -89,6 +89,15 @@ input:focus, select:focus { outline: 2px solid var(--accent); border-color: var(
 .pickbtn { padding: 12px 8px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--text); font-weight: 600; font-size: .9rem; }
 .pickbtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+/* onboarding prima apertura */
+.onboarding { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 28px 22px; }
+.ob-card { width: 100%; max-width: 420px; text-align: center; }
+.ob-logo { font-size: 2.4rem; }
+.ob-card h2 { font-size: 1.3rem; margin: 8px 0 4px; }
+.ob-card h2 span { color: var(--accent2); }
+.ob-card p { color: var(--muted); font-size: .92rem; margin: 0 0 18px; line-height: 1.4; }
+.ob-wait { color: var(--muted); font-size: .95rem; }
+
 nav.tabs { position: fixed; bottom: 0; left: 0; right: 0; display: flex; z-index: 40; background: var(--bg2); border-top: 1px solid var(--line); }
 nav.tabs button { flex: 1; background: none; border: none; color: var(--muted); padding: 9px 0 10px; font-size: .68rem; display: flex; flex-direction: column; align-items: center; gap: 3px; }
 nav.tabs button .ic { font-size: 1.25rem; }
