@@ -87,11 +87,15 @@ function mergeCloudMoves(obj) {
 // config: SOLA LETTURA. Rispecchia la config di lega dal cloud (non scrive mai).
 function adoptConfig(remote) {
   if (!remote || typeof remote !== "object") return false;
+  // teams[] è il modello attuale; tollera la vecchia forma (myName+opponents) durante la transizione
+  const teams = Array.isArray(remote.teams) ? remote.teams
+    : (remote.myName != null || Array.isArray(remote.opponents)) ? [remote.myName || "IO", ...(remote.opponents || [])]
+    : (CONFIG.teams || []);
   const next = {
     numTeams: remote.numTeams ?? CONFIG.numTeams,
     budgetPerTeam: remote.budgetPerTeam ?? CONFIG.budgetPerTeam,
     roster: remote.roster ?? CONFIG.roster,
-    teams: Array.isArray(remote.teams) ? remote.teams : (CONFIG.teams || []),
+    teams,
   };
   if (JSON.stringify(next) === JSON.stringify(CONFIG)) return false;
   CONFIG = next; save(LS.config, CONFIG);
