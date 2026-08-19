@@ -8,9 +8,9 @@ import { ROLES, reduceMoves, computeTeams } from "./engine-lite.js";
 
 const LS = {
   sync: "fal_sync", moves: "fal_moves", config: "fal_config", myteam: "fal_myteam",
-  device: "fal_device", players: "fal_players", meta: "fal_meta",
+  device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
 };
-const APP_VERSION = "lite-v7"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v8"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -24,6 +24,7 @@ let SYNC = load(LS.sync, {
 let MOVES = load(LS.moves, []);
 let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [], auctionOpen: true });
 let MYTEAM = load(LS.myteam, "");          // quale squadra sono io (scelta LOCALE)
+let FAVORITES = new Set(load(LS.fav, [])); // obiettivi personali (solo locali)
 let PURCHASES = [];
 let PLAYERS = [];
 let META = {};
@@ -32,7 +33,7 @@ let buyPrice = null;
 let DEVICE_ID = load(LS.device, "");
 if (!DEVICE_ID) { DEVICE_ID = "lit-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); save(LS.device, DEVICE_ID); }
 let _esMoves = null, _esConfig = null, _pollId = null, _status = "off";
-const ui = { screen: "asta", search: "", expanded: new Set() };
+const ui = { screen: "asta", search: "", expanded: new Set(), role: "ALL", sort: "qi", onlyFav: false, hideTaken: false, searchL: "" };
 let obDismissed = false; // onboarding: chiuso manualmente per questa sessione (per raggiungere il Setup)
 let syncUnlocked = false; // collegamento alla lega sbloccato per la modifica (solo questa sessione)
 // Guardrail SOFT (non sicurezza: il repo è pubblico). Hash SHA-256 della password admin.
@@ -212,6 +213,7 @@ function renderAll() {
   renderOnboarding();
   renderDataChip();
   if (ui.screen === "asta") renderAsta();
+  if (ui.screen === "listone") renderListone();
   if (ui.screen === "squadre") renderSquadre();
   if (ui.screen === "setup") renderSetup();
 }
@@ -302,6 +304,34 @@ function renderRecent() {
       <button class="star" data-undo="${esc(pu.playerId)}" title="Annulla">✕</button>
     </div>`;
   }).join("");
+}
+
+// ---- LISTONE (solo dati pubblici: nome, squadra, ruolo, Qi, stato preso) ----
+function renderListone() {
+  const el = document.getElementById("listoneList");
+  const taken = new Map(PURCHASES.map((p) => [p.playerId, p]));
+  let list = PLAYERS.slice();
+  if (ui.role !== "ALL") list = list.filter((p) => p.ruolo === ui.role);
+  if (ui.onlyFav) list = list.filter((p) => FAVORITES.has(p.id));
+  if (ui.hideTaken) list = list.filter((p) => !taken.has(p.id));
+  if (ui.searchL) { const q = ui.searchL.toLowerCase(); list = list.filter((p) => p.nome.toLowerCase().includes(q) || p.squadra.toLowerCase().includes(q)); }
+  const cmp = { qi: (a, b) => (b.qi || 0) - (a.qi || 0), nome: (a, b) => a.nome.localeCompare(b.nome) }[ui.sort] || ((a, b) => (b.qi || 0) - (a.qi || 0));
+  list.sort(cmp);
+  el.innerHTML = list.slice(0, 300).map((p) => {
+    const t = taken.get(p.id);
+    return `<div class="row ${t ? "taken" : ""}" data-pick="${esc(p.id)}">
+      <button class="star ${FAVORITES.has(p.id) ? "on" : ""}" data-fav="${esc(p.id)}">${FAVORITES.has(p.id) ? "★" : "☆"}</button>
+      <span class="rp ${p.ruolo}">${p.ruolo}</span>
+      <div class="grow"><div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
+        <div class="meta">${esc(p.squadra)}${t ? ` · preso ${esc(t.team)}` : ""}</div></div>
+      <span class="price">${t ? t.price : (p.qi ?? "")}</span>
+    </div>`;
+  }).join("") || `<div class="row"><span class="meta">Nessun giocatore.</span></div>`;
+}
+function toggleFav(id) {
+  if (FAVORITES.has(id)) FAVORITES.delete(id); else FAVORITES.add(id);
+  save(LS.fav, [...FAVORITES]);
+  if (ui.screen === "listone") renderListone();
 }
 
 // ---- SQUADRE ----
@@ -414,7 +444,20 @@ function wire() {
 
   document.body.addEventListener("input", (e) => { if (e.target && e.target.id === "priceInput") buyPrice = Math.max(1, Math.round(Number(e.target.value) || 1)); });
 
+  // filtri Listone
+  document.getElementById("searchL").addEventListener("input", (e) => { ui.searchL = e.target.value.trim(); renderListone(); });
+  document.getElementById("roleFilters").addEventListener("click", (e) => {
+    const c = e.target.closest("[data-role]"); if (!c) return;
+    ui.role = c.dataset.role;
+    document.querySelectorAll("#roleFilters [data-role]").forEach((x) => x.classList.toggle("on", x === c));
+    renderListone();
+  });
+  document.getElementById("sortBy").addEventListener("change", (e) => { ui.sort = e.target.value; renderListone(); });
+  document.getElementById("onlyFav").addEventListener("click", (e) => { ui.onlyFav = !ui.onlyFav; e.target.classList.toggle("on", ui.onlyFav); renderListone(); });
+  document.getElementById("hideTaken").addEventListener("click", (e) => { ui.hideTaken = !ui.hideTaken; e.target.classList.toggle("on", ui.hideTaken); renderListone(); });
+
   document.body.addEventListener("click", (e) => {
+    const fav = e.target.closest("[data-fav]"); if (fav) { e.stopPropagation(); toggleFav(fav.dataset.fav); return; }
     const pick = e.target.closest("[data-pick]"); if (pick) { selectPlayer(pick.dataset.pick); return; }
     const step = e.target.closest("[data-step]"); if (step) { const inp = document.getElementById("priceInput"); const v = Math.max(1, (Number(inp.value) || 1) + Number(step.dataset.step)); inp.value = v; buyPrice = v; return; }
     const team = e.target.closest("[data-team]");
