@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>FantaAsta LITE</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Fanta<span>Asta</span> <em>LITE</em></h1>
+    <div class="data-chip" id="dataChip">…</div>
+  </header>
+
+  <main>
+    <!-- ASTA -->
+    <section class="screen active" id="screen-asta">
+      <div class="search-wrap">
+        <input id="search" type="text" inputmode="search" autocomplete="off" placeholder="🔍 Cerca il giocatore…" />
+        <div class="results" id="searchResults"></div>
+      </div>
+      <div class="called empty" id="calledCard">Cerca un giocatore per registrarne l'acquisto.</div>
+      <div class="section-title">Ultimi acquisti</div>
+      <div class="list" id="recentList"><div class="row"><span class="meta">Nessun acquisto ancora.</span></div></div>
+    </section>
+
+    <!-- SQUADRE -->
+    <section class="screen" id="screen-squadre">
+      <div class="section-title">Budget e slot per squadra</div>
+      <div class="list" id="teamsList"></div>
+    </section>
+
+    <!-- SETUP -->
+    <section class="screen" id="screen-setup">
+      <div class="section-title">La mia squadra</div>
+      <div id="myTeamSel"></div>
+
+      <div class="section-title">Collegamento alla lega</div>
+      <div class="setting">
+        <label>URL del database (Firebase)</label>
+        <input id="syncUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://....firebasedatabase.app" />
+      </div>
+      <div class="setting">
+        <label>Codice Lega (lo stesso dell'admin)</label>
+        <input id="syncCode" type="text" autocomplete="off" placeholder="es. lugoasta" />
+      </div>
+      <button class="btn me full" id="syncToggle">▶ Attiva</button>
+      <div class="hint" id="syncStatus" style="margin-top:8px"></div>
+      <div class="hint" style="margin-top:6px">La configurazione della lega (squadre, budget, slot) la imposta l'<b>admin</b> nell'app piena: qui è in sola lettura. Tu registri gli acquisti, che si sincronizzano con tutti.</div>
+
+      <div class="section-title">Dati</div>
+      <div class="setting">
+        <div class="hint" id="metaInfo"></div>
+        <button class="btn ghost full" id="refreshData" style="margin-top:8px">🔄 Aggiorna dati</button>
+        <button class="btn ghost full" id="forceApp" style="margin-top:8px">🆕 Forza aggiornamento app</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" id="tabs">
+    <button class="on" data-screen="asta"><span class="ic">⚡</span>Asta</button>
+    <button data-screen="squadre"><span class="ic">👥</span>Squadre</button>
+    <button data-screen="setup"><span class="ic">⚙️</span>Setup</button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
