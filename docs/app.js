@@ -33,6 +33,15 @@ if (!DEVICE_ID) { DEVICE_ID = "lit-" + Math.random().toString(36).slice(2, 10) +
 let _esMoves = null, _esConfig = null, _pollId = null, _status = "off";
 const ui = { screen: "asta", search: "", expanded: new Set() };
 let obDismissed = false; // onboarding: chiuso manualmente per questa sessione (per raggiungere il Setup)
+let syncUnlocked = false; // collegamento alla lega sbloccato per la modifica (solo questa sessione)
+// Guardrail SOFT (non sicurezza: il repo è pubblico). Hash SHA-256 della password admin.
+const ADMIN_PW_HASH = "7faba760d871c295842460842136c79d8202b494893fe822485a2f5481a30a2c";
+async function checkAdminPw(pw) {
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pw || ""));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("") === ADMIN_PW_HASH;
+  } catch { return false; }
+}
 
 // ---------------------------------------------------------------------------
 // Sync (Firebase RTDB via REST) — config in sola lettura, mosse in append
@@ -322,7 +331,14 @@ function renderSetup() {
   const c = document.getElementById("syncCode"); if (document.activeElement !== c) c.value = SYNC.code || "";
   const st = { ok: "🟢 connesso", err: "🔴 errore (controlla URL e Codice Lega)", off: "⚪ spenta" }[_status] || "";
   document.getElementById("syncStatus").innerHTML = SYNC.on ? "Stato: " + st : "Sincronizzazione spenta";
-  document.getElementById("syncToggle").textContent = SYNC.on ? "⏸ Disattiva" : "▶ Attiva";
+  const tg = document.getElementById("syncToggle"); tg.textContent = SYNC.on ? "⏸ Disattiva" : "▶ Attiva";
+  // lucchetto: URL/Codice/toggle modificabili solo dopo lo sblocco con password
+  const locked = !syncUnlocked;
+  u.disabled = locked; c.disabled = locked; tg.disabled = locked;
+  document.getElementById("unlockRow").style.display = locked ? "" : "none";
+  document.getElementById("unlockedNote").style.display = locked ? "none" : "";
+  document.getElementById("syncUrlLbl").textContent = "URL del database (Firebase) " + (locked ? "🔒" : "🔓");
+  document.getElementById("syncCodeLbl").textContent = "Codice Lega (lo stesso dell'admin) " + (locked ? "🔒" : "🔓");
 
   const sel = document.getElementById("myTeamSel");
   const teams = CONFIG.teams || [];
@@ -397,6 +413,15 @@ function wire() {
     const undo = e.target.closest("[data-undo]"); if (undo) { undoBuy(undo.dataset.undo); return; }
     const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${MYTEAM}`); return; }
     const obSetup = e.target.closest("#obSetup"); if (obSetup) { obDismissed = true; setScreen("setup"); return; }
+    const unlockBtn = e.target.closest("#unlockBtn");
+    if (unlockBtn) {
+      const inp = document.getElementById("unlockPw"); const pw = inp ? inp.value : "";
+      checkAdminPw(pw).then((ok) => {
+        if (ok) { syncUnlocked = true; if (inp) inp.value = ""; renderSetup(); toast("Collegamento sbloccato"); }
+        else toast("Password errata");
+      });
+      return;
+    }
   });
 
   document.getElementById("syncUrl").addEventListener("change", (e) => { SYNC.url = e.target.value.trim(); persistSync(); if (SYNC.on) startSync(); });

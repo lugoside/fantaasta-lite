@@ -23,6 +23,8 @@ main { padding: 12px 14px 20px; max-width: 720px; margin: 0 auto; }
 .search-wrap { position: relative; }
 input, select { width: 100%; padding: 12px 14px; font-size: 1rem; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
 input:focus, select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+input:disabled { opacity: .55; }
+.btn:disabled { opacity: .5; }
 .results { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); max-height: 320px; overflow-y: auto; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
 .results:empty { display: none; }
 .result-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
