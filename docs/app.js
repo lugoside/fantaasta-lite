@@ -10,6 +10,7 @@ const LS = {
   sync: "fal_sync", moves: "fal_moves", config: "fal_config", myteam: "fal_myteam",
   device: "fal_device", players: "fal_players", meta: "fal_meta",
 };
+const APP_VERSION = "lite-v7"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -335,7 +336,8 @@ function renderSquadre() {
 function renderSetup() {
   document.getElementById("metaInfo").innerHTML =
     `Stagione <b>${META.stagione || "?"}</b> · ${META.numGiocatori || PLAYERS.length} giocatori` +
-    (META.fonteAggiornata ? `<br>📅 Listone: <b>${esc(META.fonteAggiornata)}</b>` : "");
+    (META.fonteAggiornata ? `<br>📅 Listone: <b>${esc(META.fonteAggiornata)}</b>` : "") +
+    `<br><span style="opacity:.55">app ${APP_VERSION}</span>`;
 
   const u = document.getElementById("syncUrl"); if (document.activeElement !== u) u.value = SYNC.url || "";
   const c = document.getElementById("syncCode"); if (document.activeElement !== c) c.value = SYNC.code || "";
