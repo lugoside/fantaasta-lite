@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v14"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v15"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -36,6 +36,7 @@ let buyConfirm = false; // step di conferma acquisto (evita acquisti involontari
 let DEVICE_ID = load(LS.device, "");
 if (!DEVICE_ID) { DEVICE_ID = "lit-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); save(LS.device, DEVICE_ID); }
 let _esMoves = null, _esConfig = null, _pollId = null, _status = "off";
+const _inflight = new Set(); // uid delle mosse in invio (in MEMORIA): dedup senza perdere ritenti
 const ui = { screen: "asta", search: "", expanded: new Set(), role: "ALL", sort: "nome", onlyFav: false, hideTaken: false, searchL: "" };
 let obDismissed = false; // onboarding: chiuso manualmente per questa sessione (per raggiungere il Setup)
 let syncUnlocked = false; // collegamento alla lega sbloccato per la modifica (solo questa sessione)
@@ -72,14 +73,15 @@ function emitMove(mv) {
   return m;
 }
 async function pushMove(m) {
-  const url = movesUrl(); if (!SYNC.on || !url || m.posted) return; // già inviata/in invio → niente duplicati
-  m.posted = true; saveMoves();                                     // guardia OTTIMISTICA: blocca push concorrenti
+  const url = movesUrl(); if (!SYNC.on || !url || m.posted || _inflight.has(m.uid)) return; // già inviata / in invio
+  _inflight.add(m.uid);                                             // dedup concorrenza (in memoria)
   const body = { uid: m.uid, type: m.type, playerId: m.playerId, byDevice: m.byDevice, ts: { ".sv": "timestamp" } };
   for (const k of ["team", "price", "nome", "ruolo", "squadra"]) if (m[k] != null) body[k] = m[k];
   try {
     await fetch(url + ".json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    setStatus("ok");
-  } catch { m.posted = false; saveMoves(); setStatus("err"); }      // ripristina per ritentare
+    m.posted = true; saveMoves(); setStatus("ok");                 // posted solo DOPO invio riuscito → fetch interrotta = ritentata
+  } catch { setStatus("err"); }
+  finally { _inflight.delete(m.uid); }
 }
 async function flushPending() {
   if (!SYNC.on) return;
