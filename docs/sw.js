@@ -1,5 +1,5 @@
 // Service worker LITE: network-first con fallback su cache (come la FULL).
-const VERSION = "lite-v15";
+const VERSION = "lite-v16";
 const CACHE = "fal-" + VERSION;
 const SHELL_ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./engine-lite.js",
@@ -12,6 +12,8 @@ self.addEventListener("activate", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  // NON intercettare le richieste cross-origin (Firebase: stream SSE + REST) → sync realtime intatta
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request, { cache: "no-store" })
       .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
