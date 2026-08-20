@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v10"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v11"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -175,7 +175,7 @@ async function pullConfigOnce() {
   const cu = configUrl(); if (!SYNC.on || !cu) return;
   try { const rc = await (await fetch(cu + ".json", { cache: "no-store" })).json(); if (adoptConfig(rc)) renderAll(); } catch {}
 }
-function startSync() { if (!SYNC.on) return; reconcile().then(connectSSE); if (!_pollId) _pollId = setInterval(pullOnce, 15000); }
+function startSync() { if (!SYNC.on) return; reconcile().then(connectSSE); if (!_pollId) _pollId = setInterval(pullOnce, 10000); }
 function stopSync() { for (const es of [_esMoves, _esConfig]) if (es) es.close(); _esMoves = _esConfig = null; if (_pollId) { clearInterval(_pollId); _pollId = null; } setStatus("off"); }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +498,10 @@ async function init() {
   rebuildPurchases();
   renderAll();
   if (SYNC.on) startSync();
+  // tornando in primo piano, riallinea SUBITO (mobile sospende SSE/timer in background)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && SYNC.on) { pullOnce(); connectSSE(); }
+  });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
     let _ref = false;
