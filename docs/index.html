@@ -42,8 +42,8 @@
         <button class="chip" data-role="A">A</button>
         <span class="ord-lbl">Ordina:</span>
         <select class="mini-select" id="sortBy">
-          <option value="qi">Quotazione ↓</option>
           <option value="nome">Nome A→Z</option>
+          <option value="squadra">Squadra</option>
         </select>
         <button class="chip" id="onlyFav">☆ Obiettivi</button>
         <button class="chip" id="hideTaken">Nascondi presi</button>
@@ -62,32 +62,34 @@
       <div class="section-title">La mia squadra</div>
       <div id="myTeamSel"></div>
 
-      <div class="section-title">Collegamento alla lega</div>
-      <div class="setting">
-        <label id="syncUrlLbl">URL del database (Firebase)</label>
-        <input id="syncUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://....firebasedatabase.app" disabled />
-      </div>
-      <div class="setting">
-        <label id="syncCodeLbl">Codice Lega (lo stesso dell'admin)</label>
-        <input id="syncCode" type="text" autocomplete="off" placeholder="es. lugoasta" disabled />
-      </div>
-      <div class="setting" id="unlockRow">
-        <div class="hint">🔒 Collegamento <b>bloccato</b>. Per modificarlo serve la password dell'admin.</div>
-        <div style="display:flex; gap:8px; margin-top:8px">
-          <input id="unlockPw" type="password" autocomplete="off" placeholder="password admin" />
-          <button class="btn ghost" id="unlockBtn" style="width:auto; white-space:nowrap; padding:0 16px">🔓 Sblocca</button>
-        </div>
-      </div>
-      <div class="hint" id="unlockedNote" style="display:none">🔓 Sbloccato per questa sessione: le modifiche valgono solo su questo dispositivo.</div>
-      <button class="btn me full" id="syncToggle" style="margin-top:10px" disabled>▶ Attiva</button>
-      <div class="hint" id="syncStatus" style="margin-top:8px"></div>
-      <div class="hint" style="margin-top:6px">La configurazione della lega (squadre, budget, slot) la imposta l'<b>admin</b> nell'app piena: qui è in sola lettura. Tu registri gli acquisti, che si sincronizzano con tutti.</div>
-
       <div class="section-title">Dati</div>
       <div class="setting">
         <div class="hint" id="metaInfo"></div>
         <button class="btn ghost full" id="refreshData" style="margin-top:8px">🔄 Aggiorna dati</button>
         <button class="btn ghost full" id="forceApp" style="margin-top:8px">🆕 Forza aggiornamento app</button>
+      </div>
+
+      <div class="hint" style="margin-top:20px">La configurazione della lega (squadre, budget, slot, stato asta) la imposta l'<b>admin</b> nell'app piena; qui gli acquisti si sincronizzano con tutti.</div>
+
+      <div class="section-title">🔒 Impostazioni admin</div>
+      <div class="setting" id="unlockRow">
+        <div class="hint">Riservato all'admin. Inserisci la password per modificare il collegamento alla lega.</div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <input id="unlockPw" type="password" autocomplete="off" placeholder="password admin" />
+          <button class="btn ghost" id="unlockBtn" style="width:auto; white-space:nowrap; padding:0 16px">🔓 Sblocca</button>
+        </div>
+      </div>
+      <div id="adminFields" style="display:none">
+        <div class="setting">
+          <label>URL del database (Firebase)</label>
+          <input id="syncUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://....firebasedatabase.app" />
+        </div>
+        <div class="setting">
+          <label>Codice Lega</label>
+          <input id="syncCode" type="text" autocomplete="off" placeholder="es. lugoasta" />
+        </div>
+        <button class="btn me full" id="syncToggle">▶ Attiva</button>
+        <div class="hint" id="syncStatus" style="margin-top:8px"></div>
       </div>
     </section>
   </main>

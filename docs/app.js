@@ -10,7 +10,7 @@ const LS = {
   sync: "fal_sync", moves: "fal_moves", config: "fal_config", myteam: "fal_myteam",
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
 };
-const APP_VERSION = "lite-v8"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v9"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -30,10 +30,11 @@ let PLAYERS = [];
 let META = {};
 let selectedId = null;
 let buyPrice = null;
+let buyConfirm = false; // step di conferma acquisto (evita acquisti involontari)
 let DEVICE_ID = load(LS.device, "");
 if (!DEVICE_ID) { DEVICE_ID = "lit-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); save(LS.device, DEVICE_ID); }
 let _esMoves = null, _esConfig = null, _pollId = null, _status = "off";
-const ui = { screen: "asta", search: "", expanded: new Set(), role: "ALL", sort: "qi", onlyFav: false, hideTaken: false, searchL: "" };
+const ui = { screen: "asta", search: "", expanded: new Set(), role: "ALL", sort: "nome", onlyFav: false, hideTaken: false, searchL: "" };
 let obDismissed = false; // onboarding: chiuso manualmente per questa sessione (per raggiungere il Setup)
 let syncUnlocked = false; // collegamento alla lega sbloccato per la modifica (solo questa sessione)
 // Guardrail SOFT (non sicurezza: il repo è pubblico). Hash SHA-256 della password admin.
@@ -256,35 +257,35 @@ function renderAsta() {
     card.textContent = "Cerca un giocatore per registrarne l'acquisto.";
   } else {
     const taken = takenIds().has(p.id);
-    const price = buyPrice != null ? buyPrice : Math.max(1, p.qi || 1);
-    const teams = CONFIG.teams || [];
-    const others = teams.filter((t) => t !== MYTEAM);
+    const price = buyPrice != null ? buyPrice : 1; // l'offerta parte sempre da 1
     card.className = "called";
     card.innerHTML = `
       <div class="top">
         <span class="rp ${p.ruolo}">${p.ruolo}</span>
         <div class="grow">
           <div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
-          <div class="sub">${esc(p.squadra)} · ${RUOLO_NOME[p.ruolo]} · Qi ${p.qi ?? "—"}</div>
+          <div class="sub">${esc(p.squadra)} · ${RUOLO_NOME[p.ruolo]}</div>
         </div>
       </div>
       ${taken ? `
         <div class="taken-box">✔ Già preso da <b>${esc(teamOf(p.id) || "?")}</b></div>
-        <button class="btn ghost full" data-undo="${esc(p.id)}">↩ Annulla acquisto</button>
       ` : CONFIG.auctionOpen === false ? `
         <div class="taken-box">🔒 Asta chiusa: non puoi registrare acquisti finché l'admin non la riapre.</div>
+      ` : !MYTEAM ? `
+        <div class="taken-box">Imposta prima la <b>tua squadra</b> (alla prima apertura o in Setup).</div>
+      ` : buyConfirm ? `
+        <div class="confirm-box">Confermi l'acquisto?<br><b>${esc(p.nome)}</b> <span style="opacity:.7">(${esc(p.squadra)})</span><br><b>${price}</b> crediti · <b>${esc(MYTEAM)}</b></div>
+        <div class="buy-actions">
+          <button class="btn me" data-confirmbuy="1">✓ Conferma</button>
+          <button class="btn ghost" data-cancelbuy="1">✗ Annulla</button>
+        </div>
       ` : `
         <div class="buy-row">
           <button class="step" data-step="-1">−</button>
           <input id="priceInput" type="number" inputmode="numeric" min="1" value="${price}" />
           <button class="step" data-step="1">+</button>
         </div>
-        <div class="flow-title">A quale squadra è andato?</div>
-        <div class="team-grid">
-          ${MYTEAM ? `<button class="btn me" data-team="${esc(MYTEAM)}">⭐ ${esc(MYTEAM)}</button>` : `<div class="hint" style="grid-column:1/-1">Imposta la <b>tua squadra</b> in Setup per registrarla con un tocco.</div>`}
-          ${others.map((o) => `<button class="btn opp" data-team="${esc(o)}">${esc(o)}</button>`).join("")}
-        </div>
-        ${teams.length ? "" : `<div class="hint" style="margin-top:8px">In attesa dell'elenco squadre dall'admin (config di lega). Controlla il Codice Lega in Setup.</div>`}
+        <button class="btn me full" data-buymine="1">✓ Compra per ${esc(MYTEAM)}</button>
       `}
     `;
   }
@@ -301,7 +302,6 @@ function renderRecent() {
       <span class="rp ${pl.ruolo}">${pl.ruolo}</span>
       <div class="grow"><div class="nome">${esc(pl.nome)}</div><div class="meta">${esc(pu.team || "?")}</div></div>
       <span class="price">${pu.price}</span>
-      <button class="star" data-undo="${esc(pu.playerId)}" title="Annulla">✕</button>
     </div>`;
   }).join("");
 }
@@ -315,7 +315,7 @@ function renderListone() {
   if (ui.onlyFav) list = list.filter((p) => FAVORITES.has(p.id));
   if (ui.hideTaken) list = list.filter((p) => !taken.has(p.id));
   if (ui.searchL) { const q = ui.searchL.toLowerCase(); list = list.filter((p) => p.nome.toLowerCase().includes(q) || p.squadra.toLowerCase().includes(q)); }
-  const cmp = { qi: (a, b) => (b.qi || 0) - (a.qi || 0), nome: (a, b) => a.nome.localeCompare(b.nome) }[ui.sort] || ((a, b) => (b.qi || 0) - (a.qi || 0));
+  const cmp = { nome: (a, b) => a.nome.localeCompare(b.nome), squadra: (a, b) => a.squadra.localeCompare(b.squadra) || a.nome.localeCompare(b.nome) }[ui.sort] || ((a, b) => a.nome.localeCompare(b.nome));
   list.sort(cmp);
   el.innerHTML = list.slice(0, 300).map((p) => {
     const t = taken.get(p.id);
@@ -324,7 +324,7 @@ function renderListone() {
       <span class="rp ${p.ruolo}">${p.ruolo}</span>
       <div class="grow"><div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
         <div class="meta">${esc(p.squadra)}${t ? ` · preso ${esc(t.team)}` : ""}</div></div>
-      <span class="price">${t ? t.price : (p.qi ?? "")}</span>
+      <span class="price">${t ? t.price : ""}</span>
     </div>`;
   }).join("") || `<div class="row"><span class="meta">Nessun giocatore.</span></div>`;
 }
@@ -339,6 +339,7 @@ function renderSquadre() {
   const el = document.getElementById("teamsList");
   const teams = computeTeams(PURCHASES, CONFIG);
   if (!teams.length) { el.innerHTML = `<div class="row"><span class="meta">In attesa della configurazione di lega dall'admin.</span></div>`; return; }
+  teams.sort((a, b) => (a.name === MYTEAM ? 0 : 1) - (b.name === MYTEAM ? 0 : 1)); // la mia squadra in cima (resto in ordine)
   const budget = CONFIG.budgetPerTeam || 500;
   el.innerHTML = teams.map((t) => {
     const pct = Math.max(0, Math.min(100, (t.budgetLeft / budget) * 100));
@@ -373,19 +374,16 @@ function renderSetup() {
   const c = document.getElementById("syncCode"); if (document.activeElement !== c) c.value = SYNC.code || "";
   const st = { ok: "🟢 connesso", err: "🔴 errore (controlla URL e Codice Lega)", off: "⚪ spenta" }[_status] || "";
   document.getElementById("syncStatus").innerHTML = SYNC.on ? "Stato: " + st : "Sincronizzazione spenta";
-  const tg = document.getElementById("syncToggle"); tg.textContent = SYNC.on ? "⏸ Disattiva" : "▶ Attiva";
-  // lucchetto: URL/Codice/toggle modificabili solo dopo lo sblocco con password
+  document.getElementById("syncToggle").textContent = SYNC.on ? "⏸ Disattiva" : "▶ Attiva";
+  // collegamento alla lega nascosto finché non si sblocca con la password admin
   const locked = !syncUnlocked;
-  u.disabled = locked; c.disabled = locked; tg.disabled = locked;
   document.getElementById("unlockRow").style.display = locked ? "" : "none";
-  document.getElementById("unlockedNote").style.display = locked ? "none" : "";
-  document.getElementById("syncUrlLbl").textContent = "URL del database (Firebase) " + (locked ? "🔒" : "🔓");
-  document.getElementById("syncCodeLbl").textContent = "Codice Lega (lo stesso dell'admin) " + (locked ? "🔒" : "🔓");
+  document.getElementById("adminFields").style.display = locked ? "none" : "";
 
   const sel = document.getElementById("myTeamSel");
   const teams = CONFIG.teams || [];
   if (!teams.length) {
-    sel.innerHTML = `<div class="hint">In attesa dell'elenco squadre dall'admin. Verifica il Codice Lega qui sopra e attendi qualche secondo.</div>`;
+    sel.innerHTML = `<div class="hint">In attesa dell'elenco squadre dall'admin (config di lega). Se non compaiono, chiedi all'admin di verificare il collegamento.</div>`;
   } else {
     sel.innerHTML = `<div class="team-pick">${teams.map((t) => `
       <button class="pickbtn ${t === MYTEAM ? "on" : ""}" data-pickteam="${esc(t)}">${t === MYTEAM ? "⭐ " : ""}${esc(t)}</button>`).join("")}</div>
@@ -405,20 +403,12 @@ function selectPlayer(id) {
 function recordBuy(team) {
   if (auctionClosed()) return;
   const p = PLAYERS.find((x) => x.id === selectedId); if (!p || !team) return;
-  const inp = document.getElementById("priceInput");
-  const price = Math.max(1, Math.round(Number(inp?.value) || p.qi || 1));
+  const price = Math.max(1, Math.round(buyPrice != null ? buyPrice : 1));
   emitMove({ type: "buy", playerId: p.id, team, price, nome: p.nome, ruolo: p.ruolo, squadra: p.squadra });
   toast(`${p.nome} → ${team} a ${price}`);
-  selectedId = null; buyPrice = null; renderAll();
+  selectedId = null; buyPrice = null; buyConfirm = false; renderAll();
 }
-function undoBuy(pid) {
-  if (auctionClosed()) return;
-  emitMove({ type: "undo", playerId: pid });
-  const pl = PLAYERS.find((x) => x.id === pid);
-  toast(`Annullato: ${pl ? pl.nome : "acquisto"}`);
-  if (selectedId === pid) selectedId = null;
-  renderAll();
-}
+// La LITE NON annulla acquisti (funzione riservata all'admin nella FULL).
 
 // ---------------------------------------------------------------------------
 // Wiring
@@ -433,11 +423,11 @@ function wire() {
     if (q.length < 2) { res.innerHTML = ""; return; }
     const taken = takenIds();
     const found = PLAYERS.filter((p) => p.nome.toLowerCase().includes(q) || p.squadra.toLowerCase().includes(q))
-      .sort((a, b) => Number(taken.has(a.id)) - Number(taken.has(b.id)) || (b.qi || 0) - (a.qi || 0)).slice(0, 12);
+      .sort((a, b) => Number(taken.has(a.id)) - Number(taken.has(b.id)) || a.nome.localeCompare(b.nome)).slice(0, 12);
     res.innerHTML = found.map((p) => `
       <div class="result-row ${taken.has(p.id) ? "taken" : ""}" data-pick="${esc(p.id)}">
         <span class="rp ${p.ruolo}">${p.ruolo}</span>
-        <div class="grow"><div class="nome">${esc(p.nome)}</div><div class="meta">${esc(p.squadra)} · Qi ${p.qi ?? "—"}</div></div>
+        <div class="grow"><div class="nome">${esc(p.nome)}</div><div class="meta">${esc(p.squadra)}</div></div>
         <span class="price">${taken.has(p.id) ? "preso" : ""}</span>
       </div>`).join("");
   });
@@ -460,14 +450,12 @@ function wire() {
     const fav = e.target.closest("[data-fav]"); if (fav) { e.stopPropagation(); toggleFav(fav.dataset.fav); return; }
     const pick = e.target.closest("[data-pick]"); if (pick) { selectPlayer(pick.dataset.pick); return; }
     const step = e.target.closest("[data-step]"); if (step) { const inp = document.getElementById("priceInput"); const v = Math.max(1, (Number(inp.value) || 1) + Number(step.dataset.step)); inp.value = v; buyPrice = v; return; }
-    const team = e.target.closest("[data-team]");
-    if (team) {
-      if (e.currentTarget && team.closest("#teamsList")) { // toggle espansione nella schermata Squadre
-        const n = team.dataset.team; if (ui.expanded.has(n)) ui.expanded.delete(n); else ui.expanded.add(n); renderSquadre(); return;
-      }
-      recordBuy(team.dataset.team); return;
-    }
-    const undo = e.target.closest("[data-undo]"); if (undo) { undoBuy(undo.dataset.undo); return; }
+    const team = e.target.closest("[data-team]"); // solo espansione nella schermata Squadre
+    if (team) { const n = team.dataset.team; if (ui.expanded.has(n)) ui.expanded.delete(n); else ui.expanded.add(n); renderSquadre(); return; }
+    const buymine = e.target.closest("[data-buymine]");
+    if (buymine) { const inp = document.getElementById("priceInput"); buyPrice = Math.max(1, Math.round(Number(inp?.value) || 1)); buyConfirm = true; renderAsta(); return; }
+    const confirmbuy = e.target.closest("[data-confirmbuy]"); if (confirmbuy) { recordBuy(MYTEAM); return; }
+    const cancelbuy = e.target.closest("[data-cancelbuy]"); if (cancelbuy) { buyConfirm = false; renderAsta(); return; }
     const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${MYTEAM}`); return; }
     const obSetup = e.target.closest("#obSetup"); if (obSetup) { obDismissed = true; setScreen("setup"); return; }
     const unlockBtn = e.target.closest("#unlockBtn");
