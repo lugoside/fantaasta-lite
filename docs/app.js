@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v12"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v13"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -72,13 +72,14 @@ function emitMove(mv) {
   return m;
 }
 async function pushMove(m) {
-  const url = movesUrl(); if (!SYNC.on || !url) return;
+  const url = movesUrl(); if (!SYNC.on || !url || m.posted) return; // già inviata/in invio → niente duplicati
+  m.posted = true; saveMoves();                                     // guardia OTTIMISTICA: blocca push concorrenti
   const body = { uid: m.uid, type: m.type, playerId: m.playerId, byDevice: m.byDevice, ts: { ".sv": "timestamp" } };
   for (const k of ["team", "price", "nome", "ruolo", "squadra"]) if (m[k] != null) body[k] = m[k];
   try {
     await fetch(url + ".json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    m.posted = true; saveMoves(); setStatus("ok");
-  } catch { setStatus("err"); }
+    setStatus("ok");
+  } catch { m.posted = false; saveMoves(); setStatus("err"); }      // ripristina per ritentare
 }
 async function flushPending() {
   if (!SYNC.on) return;
