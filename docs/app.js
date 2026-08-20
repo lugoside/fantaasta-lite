@@ -9,8 +9,9 @@ import { ROLES, reduceMoves, computeTeams } from "./engine-lite.js";
 const LS = {
   sync: "fal_sync", moves: "fal_moves", config: "fal_config", myteam: "fal_myteam",
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
+  resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v9"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v10"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -22,7 +23,8 @@ let SYNC = load(LS.sync, {
   code: "lugoasta", on: true,
 });
 let MOVES = load(LS.moves, []);
-let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [], auctionOpen: true });
+let resetSeen = load(LS.resetSeen, 0); // ultimo resetAt applicato (reset di lega)
+let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [], auctionOpen: true, resetAt: 0 });
 let MYTEAM = load(LS.myteam, "");          // quale squadra sono io (scelta LOCALE)
 let FAVORITES = new Set(load(LS.fav, [])); // obiettivi personali (solo locali)
 let PURCHASES = [];
@@ -110,10 +112,13 @@ function adoptConfig(remote) {
     roster: remote.roster ?? CONFIG.roster,
     teams,
     auctionOpen: remote.auctionOpen === false ? false : true, // assente = aperta
+    resetAt: remote.resetAt || 0,
   };
   if (JSON.stringify(next) === JSON.stringify(CONFIG)) return false;
   CONFIG = next; save(LS.config, CONFIG);
   if (MYTEAM && !CONFIG.teams.includes(MYTEAM)) { MYTEAM = ""; save(LS.myteam, MYTEAM); } // squadra sparita dall'elenco
+  // reset di lega: l'admin ha azzerato → svuota le mosse locali (il cloud è già stato svuotato)
+  if ((CONFIG.resetAt || 0) > resetSeen) { MOVES = []; saveMoves(); resetSeen = CONFIG.resetAt; save(LS.resetSeen, resetSeen); rebuildPurchases(); }
   return true;
 }
 async function reconcile() {
