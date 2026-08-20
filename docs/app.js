@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v13"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v14"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -113,7 +113,7 @@ function adoptConfig(remote) {
     roster: remote.roster ?? CONFIG.roster,
     teams,
     auctionOpen: remote.auctionOpen === false ? false : true, // assente = aperta
-    resetAt: remote.resetAt || 0,
+    resetAt: Math.max(CONFIG.resetAt || 0, remote.resetAt || 0), // MONOTÒNO: non scende mai
   };
   if (JSON.stringify(next) === JSON.stringify(CONFIG)) return false;
   CONFIG = next; save(LS.config, CONFIG);
