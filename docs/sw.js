@@ -1,5 +1,5 @@
 // Service worker LITE: network-first con fallback su cache (come la FULL).
-const VERSION = "lite-v18";
+const VERSION = "lite-v19";
 const CACHE = "fal-" + VERSION;
 const SHELL_ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./engine-lite.js",

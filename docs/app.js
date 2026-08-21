@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v18"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v19"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -323,7 +323,7 @@ function renderListone() {
   if (ui.onlyFav) list = list.filter((p) => FAVORITES.has(p.id));
   if (ui.hideTaken) list = list.filter((p) => !taken.has(p.id));
   if (ui.searchL) { const q = ui.searchL.toLowerCase(); list = list.filter((p) => p.nome.toLowerCase().includes(q) || p.squadra.toLowerCase().includes(q)); }
-  const cmp = { nome: (a, b) => a.nome.localeCompare(b.nome), squadra: (a, b) => a.squadra.localeCompare(b.squadra) || a.nome.localeCompare(b.nome) }[ui.sort] || ((a, b) => a.nome.localeCompare(b.nome));
+  const cmp = { nome: (a, b) => a.nome.localeCompare(b.nome), squadra: (a, b) => a.squadra.localeCompare(b.squadra) || a.nome.localeCompare(b.nome), quotazione: (a, b) => (b.qi || 0) - (a.qi || 0) || a.nome.localeCompare(b.nome) }[ui.sort] || ((a, b) => a.nome.localeCompare(b.nome));
   list.sort(cmp);
   el.innerHTML = list.slice(0, 300).map((p) => {
     const t = taken.get(p.id);
@@ -331,7 +331,7 @@ function renderListone() {
       <button class="star ${FAVORITES.has(p.id) ? "on" : ""}" data-fav="${esc(p.id)}">${FAVORITES.has(p.id) ? "★" : "☆"}</button>
       <span class="rp ${p.ruolo}">${p.ruolo}</span>
       <div class="grow"><div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
-        <div class="meta">${esc(p.squadra)}${t ? ` · preso ${esc(t.team)}` : ""}</div></div>
+        <div class="meta">${esc(p.squadra)}${p.qi != null ? ` · Qi ${p.qi}` : ""}${t ? ` · preso ${esc(t.team)}` : ""}</div></div>
       <span class="price">${t ? t.price : ""}</span>
     </div>`;
   }).join("") || `<div class="row"><span class="meta">Nessun giocatore.</span></div>`;
