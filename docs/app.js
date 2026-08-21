@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v17"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v18"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 
 function load(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } }
@@ -362,10 +362,10 @@ function renderSquadre() {
     return `<div class="team">
       <div class="hd tap" data-team="${esc(t.name)}">
         <span class="nm ${isMe ? "me" : ""}">${open ? "▾" : "▸"} ${isMe ? "⭐ " : ""}${esc(t.name)}</span>
-        <span class="bud">${t.budgetLeft} <small>/ ${budget} · ${t.count} gig.</small></span>
+        <span class="bud">${t.budgetLeft} <small>/ ${budget}</small></span>
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="slotline">${ROLES.map((r) => `<span class="slot ${r}">${r} ${t.slotsRemaining[r]}</span>`).join("")}</div>
+      <div class="slotline">${ROLES.map((r) => `<span class="slot ${r}">${r} ${(CONFIG.roster[r] || 0) - (t.slotsRemaining[r] ?? CONFIG.roster[r])}/${CONFIG.roster[r] || 0}</span>`).join("")}</div>
       ${rosterHtml}
     </div>`;
   }).join("");
