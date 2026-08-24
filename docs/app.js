@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v23"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v24"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -206,6 +206,17 @@ async function loadData(force = false) {
 // Helpers
 // ---------------------------------------------------------------------------
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// pulsante "×" per svuotare un input di ricerca in un tocco (mostrato solo se c'è testo)
+function wireSearchClear(id) {
+  const inp = document.getElementById(id);
+  const btn = inp && inp.parentElement.querySelector(".search-clear");
+  if (!inp || !btn) return;
+  const upd = () => btn.classList.toggle("show", inp.value.length > 0);
+  inp.addEventListener("input", upd);
+  btn.addEventListener("click", () => { inp.value = ""; inp.dispatchEvent(new Event("input", { bubbles: true })); inp.focus(); });
+  upd();
+}
 let toastTimer;
 function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1800); }
 // gate condiviso: quando l'admin chiude l'asta, la LITE non può registrare/annullare
@@ -452,6 +463,7 @@ function wire() {
 
   // filtri Listone
   document.getElementById("searchL").addEventListener("input", (e) => { ui.searchL = e.target.value.trim(); renderListone(); });
+  wireSearchClear("search"); wireSearchClear("searchL");
   document.getElementById("roleFilters").addEventListener("click", (e) => {
     const c = e.target.closest("[data-role]"); if (!c) return;
     ui.role = c.dataset.role;
