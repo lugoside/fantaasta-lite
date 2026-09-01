@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v34"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v35"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -288,6 +288,7 @@ function renderAsta() {
           <div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
           <div class="sub">${esc(p.squadra)}${(p.qa ?? p.qi) != null ? ` · Quot ${p.qa ?? p.qi}` : ""}</div>
         </div>
+        <button class="star ${FAVORITES.has(p.id) ? "on" : ""}" data-fav="${esc(p.id)}" title="${FAVORITES.has(p.id) ? "Togli dagli obiettivi" : "Aggiungi agli obiettivi"}">${FAVORITES.has(p.id) ? "★" : "☆"}</button>
       </div>
       ${taken ? `
         <div class="taken-box">✔ Già preso da <b>${esc(teamOf(p.id) || "?")}</b></div>
@@ -354,6 +355,7 @@ function toggleFav(id) {
   if (FAVORITES.has(id)) FAVORITES.delete(id); else FAVORITES.add(id);
   save(LS.fav, [...FAVORITES]);
   if (ui.screen === "listone") renderListone();
+  else if (ui.screen === "asta") { const inp = document.getElementById("priceInput"); if (inp) buyPrice = Math.max(1, Math.round(Number(inp.value) || 1)); renderAsta(); } // aggiorna la stellina nella card Asta senza perdere il prezzo digitato
 }
 
 // ---- SQUADRE ----
