@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v35"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v36"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -285,7 +285,7 @@ function renderAsta() {
       <div class="top">
         <span class="rp ${p.ruolo}">${p.ruolo}</span>
         <div class="grow">
-          <div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
+          <div class="nome">${esc(p.nome)}</div>
           <div class="sub">${esc(p.squadra)}${(p.qa ?? p.qi) != null ? ` · Quot ${p.qa ?? p.qi}` : ""}</div>
         </div>
         <button class="star ${FAVORITES.has(p.id) ? "on" : ""}" data-fav="${esc(p.id)}" title="${FAVORITES.has(p.id) ? "Togli dagli obiettivi" : "Aggiungi agli obiettivi"}">${FAVORITES.has(p.id) ? "★" : "☆"}</button>
@@ -345,7 +345,7 @@ function renderListone() {
     return `<div class="row ${t ? "taken" : ""}" data-pick="${esc(p.id)}">
       <button class="star ${FAVORITES.has(p.id) ? "on" : ""}" data-fav="${esc(p.id)}">${FAVORITES.has(p.id) ? "★" : "☆"}</button>
       <span class="rp ${p.ruolo}">${p.ruolo}</span>
-      <div class="grow"><div class="nome">${p.isNuovo ? "🆕 " : ""}${esc(p.nome)}</div>
+      <div class="grow"><div class="nome">${esc(p.nome)}</div>
         <div class="meta">${esc(p.squadra)}${(p.qa ?? p.qi) != null ? ` · Quot ${p.qa ?? p.qi}` : ""}${t ? ` · preso ${esc(t.team)}` : ""}</div></div>
       <span class="price">${t ? t.price : ""}</span>
     </div>`;
