@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v36"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v37"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -404,8 +404,9 @@ function renderSetup() {
   document.getElementById("unlockRow").style.display = locked ? "" : "none";
   document.getElementById("adminFields").style.display = locked ? "none" : "";
 
-  // dal 2/9 la scelta squadra è bloccata dietro la password admin (a meno di sblocco in sessione)
-  const myTeamLocked = Date.now() >= LOCK_MYTEAM_FROM && !syncUnlocked;
+  // dal 2/9 il CAMBIO squadra è bloccato dietro la password admin (a meno di sblocco in sessione).
+  // Il RECUPERO (quando non hai ancora una squadra) resta sempre possibile → niente incastro sulla "chi sei".
+  const myTeamLocked = !!MYTEAM && Date.now() >= LOCK_MYTEAM_FROM && !syncUnlocked;
   document.getElementById("myTeamBlock").style.display = myTeamLocked ? "none" : "";
   document.getElementById("myTeamLocked").style.display = myTeamLocked ? "" : "none";
 
@@ -486,7 +487,7 @@ function wire() {
     if (buymine) { const inp = document.getElementById("priceInput"); buyPrice = Math.max(1, Math.round(Number(inp?.value) || 1)); buyConfirm = true; renderAsta(); return; }
     const confirmbuy = e.target.closest("[data-confirmbuy]"); if (confirmbuy) { recordBuy(MYTEAM); return; }
     const cancelbuy = e.target.closest("[data-cancelbuy]"); if (cancelbuy) { buyConfirm = false; renderAsta(); return; }
-    const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { if (Date.now() >= LOCK_MYTEAM_FROM && !syncUnlocked) { toast("Scelta squadra bloccata: sbloccala in Impostazioni admin"); return; } MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${MYTEAM}`); return; }
+    const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { if (MYTEAM && Date.now() >= LOCK_MYTEAM_FROM && !syncUnlocked) { toast("Cambio squadra bloccato: sbloccalo in Impostazioni admin"); return; } MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${MYTEAM}`); return; }
     const obSetup = e.target.closest("#obSetup"); if (obSetup) { obDismissed = true; setScreen("setup"); return; }
     const unlockBtn = e.target.closest("#unlockBtn");
     if (unlockBtn) {
