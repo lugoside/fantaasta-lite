@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v37"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v38"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -27,8 +27,13 @@ let SYNC = load(LS.sync, {
 });
 let MOVES = load(LS.moves, []);
 let resetSeen = load(LS.resetSeen, 0); // ultimo resetAt applicato (reset di lega)
-let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [], auctionOpen: true, resetAt: 0 });
-let MYTEAM = load(LS.myteam, "");          // quale squadra sono io (scelta LOCALE)
+let CONFIG = load(LS.config, { numTeams: 10, budgetPerTeam: 500, roster: { P: 3, D: 8, C: 8, A: 6 }, teams: [], aliases: {}, auctionOpen: true, resetAt: 0 });
+let MYTEAM = load(LS.myteam, "");          // quale slot ID sono io (scelta LOCALE; il nome è un alias)
+// Identità = slot ID stabile; il nome scelto è solo un alias (rinominabile) → vedi FULL.
+const SLOT_RE = /^slot\d+$/;
+const STORIA_RENAME = { "Mino": "slot5" };  // rinomine storiche d'asta (Mino era Ale=slot5)
+function alias(slot) { return (CONFIG.aliases && CONFIG.aliases[slot]) || slot; }
+function toSlot(v) { if (v == null || SLOT_RE.test(v)) return v; const t = (CONFIG.teams || []).find((s) => alias(s) === v); return t || STORIA_RENAME[v] || v; }
 let FAVORITES = new Set(load(LS.fav, [])); // obiettivi personali (solo locali)
 let PURCHASES = [];
 let PLAYERS = [];
@@ -63,7 +68,7 @@ function configUrl() { const b = nodeBase(); return b ? b + "/config" : null; }
 function mkUid() { return (DEVICE_ID.replace(/^lit-/, "").slice(0, 6) || "x") + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7); }
 function setStatus(s) { _status = s; if (ui.screen === "setup") renderSetup(); }
 
-function rebuildPurchases() { PURCHASES = reduceMoves(MOVES); }
+function rebuildPurchases() { PURCHASES = reduceMoves(MOVES).map((p) => ({ ...p, team: toSlot(p.team) })); } // team → slot (tolleranza migrazione)
 
 // applica subito la mossa in locale (ottimistica) e la spedisce sul cloud
 function emitMove(mv) {
@@ -117,12 +122,18 @@ function adoptConfig(remote) {
     budgetPerTeam: remote.budgetPerTeam ?? CONFIG.budgetPerTeam,
     roster: remote.roster ?? CONFIG.roster,
     teams,
+    aliases: (remote.aliases && typeof remote.aliases === "object") ? remote.aliases : (CONFIG.aliases || {}),
     auctionOpen: remote.auctionOpen === false ? false : true, // assente = aperta
     resetAt: Math.max(CONFIG.resetAt || 0, remote.resetAt || 0), // MONOTÒNO: non scende mai
   };
   if (JSON.stringify(next) === JSON.stringify(CONFIG)) return false;
   CONFIG = next; save(LS.config, CONFIG);
-  if (MYTEAM && !CONFIG.teams.includes(MYTEAM)) { MYTEAM = ""; save(LS.myteam, MYTEAM); } // squadra sparita dall'elenco
+  // se i teams sono ora slot e il mio MYTEAM è ancora un vecchio NOME, migro a slot (niente ri-scelta).
+  if (MYTEAM && !SLOT_RE.test(MYTEAM) && CONFIG.teams.some((s) => SLOT_RE.test(s))) {
+    const s = toSlot(MYTEAM); if (SLOT_RE.test(s)) { MYTEAM = s; save(LS.myteam, MYTEAM); }
+  }
+  // sfratta MYTEAM solo se l'elenco squadre è pieno e non lo contiene (mai su teams vuoto/parziale → niente logout di massa)
+  if (MYTEAM && CONFIG.teams.length && !CONFIG.teams.includes(MYTEAM)) { MYTEAM = ""; save(LS.myteam, MYTEAM); }
   // reset di lega: l'admin ha azzerato → svuota le mosse locali (il cloud è già stato svuotato)
   if ((CONFIG.resetAt || 0) > resetSeen) { MOVES = []; saveMoves(); resetSeen = CONFIG.resetAt; save(LS.resetSeen, resetSeen); rebuildPurchases(); }
   return true;
@@ -253,7 +264,7 @@ function renderOnboarding() {
     <h2>Fanta<span>Asta</span> LITE</h2>
     <p>Qual è la <b>tua squadra</b> in questa lega?</p>
     ${teams.length
-      ? `<div class="team-pick">${teams.map((t) => `<button class="pickbtn" data-pickteam="${esc(t)}">${esc(t)}</button>`).join("")}</div>`
+      ? `<div class="team-pick">${teams.map((t) => `<button class="pickbtn" data-pickteam="${esc(t)}">${esc(alias(t))}</button>`).join("")}</div>`
       : `<div class="ob-wait">⏳ Mi collego alla lega…<div class="hint" style="margin-top:8px">Se le squadre non compaiono, controlla il <b>Codice Lega</b>.</div><button class="btn ghost full" id="obSetup" style="margin-top:16px">⚙️ Apri Setup</button></div>`}
   </div>`;
 }
@@ -297,7 +308,7 @@ function renderAsta() {
       ` : !MYTEAM ? `
         <div class="taken-box">Imposta prima la <b>tua squadra</b> (alla prima apertura o in Setup).</div>
       ` : buyConfirm ? `
-        <div class="confirm-box">Confermi l'acquisto?<br><b>${esc(p.nome)}</b> <span style="opacity:.7">(${esc(p.squadra)})</span><br><b>${price}</b> crediti · <b>${esc(MYTEAM)}</b></div>
+        <div class="confirm-box">Confermi l'acquisto?<br><b>${esc(p.nome)}</b> <span style="opacity:.7">(${esc(p.squadra)})</span><br><b>${price}</b> crediti · <b>${esc(alias(MYTEAM))}</b></div>
         <div class="buy-actions">
           <button class="btn me" data-confirmbuy="1">✓ Conferma</button>
           <button class="btn ghost" data-cancelbuy="1">✗ Annulla</button>
@@ -308,7 +319,7 @@ function renderAsta() {
           <input id="priceInput" type="number" inputmode="numeric" min="1" value="${price}" />
           <button class="step" data-step="1">+</button>
         </div>
-        <button class="btn me full" data-buymine="1">✓ Compra per ${esc(MYTEAM)}</button>
+        <button class="btn me full" data-buymine="1">✓ Compra per ${esc(alias(MYTEAM))}</button>
       `}
     `;
   }
@@ -323,7 +334,7 @@ function renderRecent() {
     const pl = PLAYERS.find((x) => x.id === pu.playerId) || { ruolo: pu.ruolo || "?", nome: pu.nome || pu.playerId };
     return `<div class="row">
       <span class="rp ${pl.ruolo}">${pl.ruolo}</span>
-      <div class="grow"><div class="nome">${esc(pl.nome)}</div><div class="meta">${esc(pu.team || "?")}</div></div>
+      <div class="grow"><div class="nome">${esc(pl.nome)}</div><div class="meta">${esc(pu.team ? alias(pu.team) : "?")}</div></div>
       <span class="price">${pu.price}</span>
     </div>`;
   }).join("");
@@ -346,7 +357,7 @@ function renderListone() {
       <button class="star ${FAVORITES.has(p.id) ? "on" : ""}" data-fav="${esc(p.id)}">${FAVORITES.has(p.id) ? "★" : "☆"}</button>
       <span class="rp ${p.ruolo}">${p.ruolo}</span>
       <div class="grow"><div class="nome">${esc(p.nome)}</div>
-        <div class="meta">${esc(p.squadra)}${(p.qa ?? p.qi) != null ? ` · Quot ${p.qa ?? p.qi}` : ""}${t ? ` · preso ${esc(t.team)}` : ""}</div></div>
+        <div class="meta">${esc(p.squadra)}${(p.qa ?? p.qi) != null ? ` · Quot ${p.qa ?? p.qi}` : ""}${t ? ` · preso ${esc(alias(t.team))}` : ""}</div></div>
       <span class="price">${t ? t.price : ""}</span>
     </div>`;
   }).join("") || `<div class="row"><span class="meta">Nessun giocatore.</span></div>`;
@@ -377,7 +388,7 @@ function renderSquadre() {
       <div class="rrow"><span class="rp ${r.ruolo}">${r.ruolo}</span><span class="rn">${esc(r.nome)}</span><span class="rprice">${r.price}</span></div>`).join("") : `<div class="rempty">Nessun giocatore ancora.</div>`}</div>` : "";
     return `<div class="team">
       <div class="hd tap" data-team="${esc(t.name)}">
-        <span class="nm ${isMe ? "me" : ""}">${open ? "▾" : "▸"} ${isMe ? "⭐ " : ""}${esc(t.name)}</span>
+        <span class="nm ${isMe ? "me" : ""}">${open ? "▾" : "▸"} ${isMe ? "⭐ " : ""}${esc(alias(t.name))}</span>
         <span class="bud">${t.budgetLeft} <small>/ ${budget}</small></span>
       </div>
       <div class="bar"><i style="width:${pct}%"></i></div>
@@ -416,7 +427,7 @@ function renderSetup() {
     sel.innerHTML = `<div class="hint">In attesa dell'elenco squadre dall'admin (config di lega). Se non compaiono, chiedi all'admin di verificare il collegamento.</div>`;
   } else {
     sel.innerHTML = `<div class="team-pick">${teams.map((t) => `
-      <button class="pickbtn ${t === MYTEAM ? "on" : ""}" data-pickteam="${esc(t)}">${t === MYTEAM ? "⭐ " : ""}${esc(t)}</button>`).join("")}</div>
+      <button class="pickbtn ${t === MYTEAM ? "on" : ""}" data-pickteam="${esc(t)}">${t === MYTEAM ? "⭐ " : ""}${esc(alias(t))}</button>`).join("")}</div>
       <div class="hint" style="margin-top:6px">Scelta locale: dice all'app quale squadra sei tu (per registrare "preso da me"). Non cambia nulla per gli altri.</div>`;
   }
 }
@@ -487,7 +498,7 @@ function wire() {
     if (buymine) { const inp = document.getElementById("priceInput"); buyPrice = Math.max(1, Math.round(Number(inp?.value) || 1)); buyConfirm = true; renderAsta(); return; }
     const confirmbuy = e.target.closest("[data-confirmbuy]"); if (confirmbuy) { recordBuy(MYTEAM); return; }
     const cancelbuy = e.target.closest("[data-cancelbuy]"); if (cancelbuy) { buyConfirm = false; renderAsta(); return; }
-    const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { if (MYTEAM && Date.now() >= LOCK_MYTEAM_FROM && !syncUnlocked) { toast("Cambio squadra bloccato: sbloccalo in Impostazioni admin"); return; } MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${MYTEAM}`); return; }
+    const pickteam = e.target.closest("[data-pickteam]"); if (pickteam) { if (MYTEAM && Date.now() >= LOCK_MYTEAM_FROM && !syncUnlocked) { toast("Cambio squadra bloccato: sbloccalo in Impostazioni admin"); return; } MYTEAM = pickteam.dataset.pickteam; save(LS.myteam, MYTEAM); renderAll(); toast(`Sei: ${alias(MYTEAM)}`); return; }
     const obSetup = e.target.closest("#obSetup"); if (obSetup) { obDismissed = true; setScreen("setup"); return; }
     const unlockBtn = e.target.closest("#unlockBtn");
     if (unlockBtn) {
