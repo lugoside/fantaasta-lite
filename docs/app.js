@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v38"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v39"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -144,6 +144,10 @@ async function reconcile() {
     const rc = await (await fetch(cu + ".json", { cache: "no-store" })).json();
     adoptConfig(rc);
     const rm = await (await fetch(mu + ".json", { cache: "no-store" })).json();
+    // AUTO-GUARIGIONE: mosse locali su vecchi NOMI ma config già su slot → azzera e ripopola dal cloud (slot-keyed)
+    if (rm && Object.keys(rm).length && CONFIG.teams.length && CONFIG.teams.every((t) => SLOT_RE.test(t)) && MOVES.some((m) => m && m.team && !SLOT_RE.test(m.team))) {
+      MOVES = []; saveMoves();
+    }
     mergeCloudMoves(rm);
     await flushPending();
     renderAll(); setStatus("ok");
