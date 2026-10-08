@@ -11,7 +11,7 @@ const LS = {
   device: "fal_device", players: "fal_players", meta: "fal_meta", fav: "fal_favorites",
   resetSeen: "fal_reset_seen",
 };
-const APP_VERSION = "lite-v39"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
+const APP_VERSION = "lite-v41"; // mostrata in Setup per capire se l'app è aggiornata (allineata a sw.js)
 const RUOLO_NOME = { P: "Portiere", D: "Difensore", C: "Centrocampista", A: "Attaccante" };
 // Dal 2/9/2026 la scelta "La mia squadra" si blocca dietro la password admin (in vista dell'asta):
 // prima resta libera (gli avversari scelgono la loro squadra), dopo si cambia solo da sbloccati.
@@ -89,13 +89,21 @@ function emitMove(mv) {
   pushMove(m);
   return m;
 }
+// fetch verso Firebase: una risposta HTTP non-2xx (401/403 regole, 5xx) è un ERRORE.
+// Prima fetch() "riusciva" anche su 403 → mossa marcata posted e mai ritentata, e un
+// corpo {"error":…} veniva adottato come config (auctionOpen tornava "aperta").
+async function fbFetch(url, init) {
+  const r = await fetch(url, init);
+  if (!r.ok) throw new Error("Firebase HTTP " + r.status);
+  return r;
+}
 async function pushMove(m) {
   const url = movesUrl(); if (!SYNC.on || !url || m.posted || _inflight.has(m.uid)) return; // già inviata / in invio
   _inflight.add(m.uid);                                             // dedup concorrenza (in memoria)
   const body = { uid: m.uid, type: m.type, playerId: m.playerId, byDevice: m.byDevice, ts: { ".sv": "timestamp" } };
   for (const k of ["team", "price", "nome", "ruolo", "squadra"]) if (m[k] != null) body[k] = m[k];
   try {
-    await fetch(url + ".json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await fbFetch(url + ".json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     m.posted = true; saveMoves(); setStatus("ok");                 // posted solo DOPO invio riuscito → fetch interrotta = ritentata
   } catch { setStatus("err"); }
   finally { _inflight.delete(m.uid); }
@@ -150,9 +158,9 @@ function adoptConfig(remote) {
 async function reconcile() {
   const cu = configUrl(), mu = movesUrl(); if (!SYNC.on || !cu || !mu) return;
   try {
-    const rc = await (await fetch(cu + ".json", { cache: "no-store" })).json();
+    const rc = await (await fbFetch(cu + ".json", { cache: "no-store" })).json();
     adoptConfig(rc);
-    const rm = await (await fetch(mu + ".json", { cache: "no-store" })).json();
+    const rm = await (await fbFetch(mu + ".json", { cache: "no-store" })).json();
     // AUTO-GUARIGIONE: mosse locali su vecchi NOMI ma config già su slot → azzera e ripopola dal cloud (slot-keyed)
     if (rm && Object.keys(rm).length && CONFIG.teams.length && CONFIG.teams.every((t) => SLOT_RE.test(t)) && MOVES.some((m) => m && m.team && !SLOT_RE.test(m.team))) {
       MOVES = []; saveMoves();
@@ -165,9 +173,9 @@ async function reconcile() {
 async function pullOnce() {
   const mu = movesUrl(), cu = configUrl(); if (!SYNC.on || !mu) return;
   try {
-    const rm = await (await fetch(mu + ".json", { cache: "no-store" })).json();
+    const rm = await (await fbFetch(mu + ".json", { cache: "no-store" })).json();
     const cm = mergeCloudMoves(rm);
-    const rc = await (await fetch(cu + ".json", { cache: "no-store" })).json();
+    const rc = await (await fbFetch(cu + ".json", { cache: "no-store" })).json();
     const cc = adoptConfig(rc);
     if (cm || cc) renderAll();
     await flushPending(); setStatus("ok");
@@ -203,7 +211,7 @@ function connectSSE() {
 }
 async function pullConfigOnce() {
   const cu = configUrl(); if (!SYNC.on || !cu) return;
-  try { const rc = await (await fetch(cu + ".json", { cache: "no-store" })).json(); if (adoptConfig(rc)) renderAll(); } catch {}
+  try { const rc = await (await fbFetch(cu + ".json", { cache: "no-store" })).json(); if (adoptConfig(rc)) renderAll(); } catch {}
 }
 function startSync() { if (!SYNC.on) return; reconcile().then(connectSSE); if (!_pollId) _pollId = setInterval(pullOnce, 10000); }
 function stopSync() { for (const es of [_esMoves, _esConfig]) if (es) es.close(); _esMoves = _esConfig = null; if (_pollId) { clearInterval(_pollId); _pollId = null; } setStatus("off"); }
